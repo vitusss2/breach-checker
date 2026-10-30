@@ -6,7 +6,7 @@ from flask_cors import CORS
 
 # Plik z hashami SHA-1 (jeden na linię) - podłączany do kontenera przez bind mount
 HASHES_FILE = os.environ.get("HASHES_FILE", "/app/data/leaked-sha1.txt")
-
+# test
 app = Flask(__name__)
 # Przeglądarka wpuści odpowiedź tylko dla strony z http://localhost:8080 (frontend)
 CORS(app, origins=["http://localhost:8080"])
@@ -41,6 +41,10 @@ def check():
 
     # TODO 2: zwróć JSON {"found": found}
     return jsonify({"found": found})
+
+@app.get("/health")
+def health():
+    return jsonify({"status": "ok"})
 
 if __name__ == "__main__":
     # 0.0.0.0 = nasłuchuj na wszystkich interfejsach kontenera, nie tylko na jego localhost
