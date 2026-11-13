@@ -21,3 +21,25 @@ def test_plaintext_password_is_rejected(client):
     # API przyjmuje tylko skrót - hasło w postaci jawnej musi zostać odrzucone
     response = client.post("/check", json={"hash": "123456"})
     assert response.status_code == 400
+
+def test_upper(client):
+    # skrot wielkimi literami jest uznawany jako wyciek
+    response = client.post("/check", json={"hash":LEAKED.upper()})
+    assert response.status_code == 200
+    assert response.get_json() == {"found":True}
+
+def test_39characters(client):
+    # skrót o długości 39 znaków jest odrzucany
+    response = client.post("/check", json = {"hash": LEAKED[:39]})
+    assert response.status_code == 400
+
+def test_40characters(client):
+    # 40 znaków spoza zakresu hex jest odrzucane
+    response = client.post("/check", "g"*40)
+
+
+def test_not_json(client):
+    # treść żądania, która nie jest JSON-em (client.post("/check", data="abc")), jest odrzucana
+    response = client.post("/check", data="abc")
+    assert response.status_code == 400
+    
