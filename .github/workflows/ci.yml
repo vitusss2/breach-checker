@@ -41,20 +41,3 @@ jobs:
         run: docker build -t "$IMAGE:$GITHUB_SHA" -t "$IMAGE:latest" backend
       - name: Publish backend
         run: docker push --all-tags "$IMAGE"
-
-  build-and-push:
-    needs: test
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - name: Set backend image name
-        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/breach-checker-backend" >> "$GITHUB_ENV"
-      - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-      - name: Build production backend
-        run: docker build -t "$IMAGE:$GITHUB_SHA" -t "$IMAGE:latest" backend
-      - name: Publish backend
-        run: docker push --all-tags "$IMAGE"
