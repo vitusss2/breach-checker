@@ -1,0 +1,26 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  POSTGRES_DB: breachdb
+  POSTGRES_USER: breach
+  POSTGRES_PASSWORD: haslo-tylko-dla-ci
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Start development backend and database
+        run: docker compose up -d --build --wait backend
+      - name: Run backend tests
+        run: docker compose exec -T backend pytest -v
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs
