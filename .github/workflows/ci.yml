@@ -41,3 +41,31 @@ jobs:
         run: docker build -t "$IMAGE:$GITHUB_SHA" -t "$IMAGE:latest" backend
       - name: Publish backend
         run: docker push --all-tags "$IMAGE"
+
+  verify:
+    needs: build-and-push
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    env:
+      COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Select backend image from this commit
+        run: echo "BACKEND_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/breach-checker-backend:$GITHUB_SHA" >> "$GITHUB_ENV"
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Pull published backend
+        run: docker compose pull backend
+      - name: Start production stack
+        run: docker compose up -d --wait
+      - name: Smoke test through frontend
+        run: |
+          curl --fail -sS http://localhost:8080/api/health
+          curl --fail -sS -X POST -H "Content-Type: application/json" \
+            -d '{"hash":"7c4a8d09ca3762af61e59520943dc26494f8941b"}' \
+            http://localhost:8080/api/check | grep '"found":true'
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs
