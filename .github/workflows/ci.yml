@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Start development backend and database
-        run: docker compose up -d --build --wait backend
+        run: docker compose up -d --build --wait backend log redis
       - name: Run backend tests
         run: docker compose exec -T backend pytest -v
       - name: Show logs on failure
@@ -38,7 +38,7 @@ jobs:
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
       - name: Build production backend
-        run: docker build -t "$IMAGE:$GITHUB_SHA" -t "$IMAGE:latest" backend
+        run: docker build -t "$IMAGE:$GITHUB_SHA" backend
       - name: Skan obrazu backendu przez Trivy
         run: |
           docker run --rm \
@@ -48,10 +48,27 @@ jobs:
             --ignore-unfixed --exit-code 1 \
             "$IMAGE:$GITHUB_SHA"
       - name: Publish backend
-        run: docker push --all-tags "$IMAGE"
+        run: docker push "$IMAGE:$GITHUB_SHA"
+
+  build-frontend:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Build and lint frontend
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/breach-checker-frontend:$GITHUB_SHA"
+          docker build -t "$image" frontend
+          echo "IMAGE=$image" >> "$GITHUB_ENV"
+      - name: Publish frontend
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker push "$IMAGE"
 
   verify:
-    needs: build-and-push
+    needs: [build-and-push, build-frontend]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -61,15 +78,18 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Select backend image from this commit
-        run: echo "BACKEND_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/breach-checker-backend:$GITHUB_SHA" >> "$GITHUB_ENV"
+        run: |
+          echo "FRONTEND_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/breach-checker-frontend:$GITHUB_SHA" >> "$GITHUB_ENV"
+          echo "BACKEND_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/breach-checker-backend:$GITHUB_SHA" >> "$GITHUB_ENV"
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
       - name: Pull published backend
-        run: docker compose pull backend
+        run: docker compose pull backend frontend
       - name: Start production stack
         run: docker compose up -d --wait
       - name: Smoke test through frontend
         run: |
+          curl --fail -sS http://localhost:8080/ > /dev/null
           curl --fail -sS http://localhost:8080/api/health
           curl --fail -sS -X POST -H "Content-Type: application/json" \
             -d '{"hash":"7c4a8d09ca3762af61e59520943dc26494f8941b"}' \
@@ -77,3 +97,19 @@ jobs:
       - name: Show logs on failure
         if: failure()
         run: docker compose logs
+
+  promote:
+    needs: verify
+    runs-on: ubuntu-24.04
+    permissions:
+      packages: write
+    steps:
+      - name: Promote verified images
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          for service in backend frontend; do
+            image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/breach-checker-$service"
+            docker pull "$image:$GITHUB_SHA"
+            docker tag "$image:$GITHUB_SHA" "$image:latest"
+            docker push "$image:latest"
+          done
