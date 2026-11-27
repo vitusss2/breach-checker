@@ -39,6 +39,14 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
       - name: Build production backend
         run: docker build -t "$IMAGE:$GITHUB_SHA" -t "$IMAGE:latest" backend
+      - name: Skan obrazu backendu przez Trivy
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.76.0 image \
+            --scanners vuln --severity CRITICAL \
+            --ignore-unfixed --exit-code 1 \
+            "$IMAGE:$GITHUB_SHA"
       - name: Publish backend
         run: docker push --all-tags "$IMAGE"
 
