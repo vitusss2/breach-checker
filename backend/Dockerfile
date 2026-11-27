@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.12.0-slim
 # Łączy obraz w GHCR z repozytorium projektu (uprawnienia pakietu dziedziczone z repozytorium)
 LABEL org.opencontainers.image.source="https://github.com/vitusss2/breach-checker"
 # Użytkownik systemowy bez hasła i bez katalogu domowego - na nim działa aplikacja
