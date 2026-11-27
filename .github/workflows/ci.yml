@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - name: Start development backend and database
+      - name: Start backend, database, cache and logging service
         run: docker compose up -d --build --wait backend log redis
       - name: Run backend tests
         run: docker compose exec -T backend pytest -v

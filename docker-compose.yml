@@ -9,6 +9,8 @@ services:
   backend:
     build: ./backend
     environment:
+      REDIS_HOST: redis
+      LOG_URL: http://log:5001/log
       DB_HOST: db
       DB_NAME: ${POSTGRES_DB}
       DB_USER: ${POSTGRES_USER}
@@ -16,6 +18,18 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
 
   db:
     image: postgres:16-alpine
@@ -32,6 +46,58 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+
+
+  log:
+    build: ./log
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+
+
+  cadvisor:
+    image: ghcr.io/google/cadvisor:0.55.1
+    command: ["--containerd=/var/run/docker/containerd/containerd.sock"]
+    profiles: [monitoring]
+    privileged: true
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    profiles: [monitoring]
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  grafana:
+    image: grafana/grafana:12.2.0
+    profiles: [monitoring]
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
 
 volumes:
   pgdata:
