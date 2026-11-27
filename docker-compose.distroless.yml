@@ -1,0 +1,13 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.distroless
+    image: breach-checker-backend:distroless
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD", "/usr/bin/python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=2).read()"]
+      interval: 5s
+      timeout: 3s
+      retries: 10

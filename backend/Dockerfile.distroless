@@ -1,0 +1,12 @@
+FROM python:3.13-slim AS deps
+WORKDIR /build
+COPY requirements.txt .
+RUN pip install --no-cache-dir --target /deps -r requirements.txt
+
+FROM gcr.io/distroless/python3-debian13:nonroot
+WORKDIR /app
+ENV PYTHONPATH=/deps
+COPY --from=deps /deps /deps
+COPY app.py .
+EXPOSE 5000
+CMD ["-m", "gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--no-control-socket", "app:app"]
